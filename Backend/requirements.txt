@@ -21,3 +21,4 @@ statsmodels
 
 # Date handling
 python-dateutil
+gunicorn
