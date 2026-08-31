@@ -32,7 +32,7 @@ function App() {
   const [error, setError] = useState(null);
 
   // API Base URL
-  const API_BASE = 'http://localhost:5000/api';
+  const API_BASE = 'https://expense-analyzer-j3l8.onrender.com';
 
   // ===== Lifecycle Hooks =====
 
