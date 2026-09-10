@@ -12,6 +12,7 @@ import Dashboard from './components/Dashboard';
 import ExpenseForm from './components/ExpenseForm';
 import Analytics from './components/Analytics';
 import Predictions from './components/Predictions';
+import { API_BASE_URL, DEFAULT_CATEGORIES } from './config';
 
 /**
  * Main App Component
@@ -30,9 +31,10 @@ function App() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
 
-  // API Base URL
-  const API_BASE = 'https://expense-analyzer-j3l8.onrender.com';
+  // API Base URL - single shared source, see src/config.js
+  const API_BASE = API_BASE_URL;
 
   // ===== Lifecycle Hooks =====
 
@@ -44,6 +46,7 @@ function App() {
     // Fetch categories and expenses on app start
     fetchCategories();
     fetchExpenses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ===== API Functions =====
@@ -54,12 +57,19 @@ function App() {
   const fetchCategories = async () => {
     try {
       const response = await axios.get(`${API_BASE}/categories`);
-      if (response.data.success) {
+      if (response.data.success && response.data.data && response.data.data.length > 0) {
         setCategories(response.data.data);
+      } else {
+        // Backend reachable but returned no categories - fall back to
+        // sensible defaults so "Select Category" is never empty.
+        setCategories(DEFAULT_CATEGORIES);
       }
     } catch (err) {
       console.error('Error fetching categories:', err);
-      setError('Failed to load categories');
+      // Don't leave the category dropdown empty just because the
+      // network call failed - fall back to sensible defaults.
+      setCategories(DEFAULT_CATEGORIES);
+      setError('Could not reach the server for the latest categories. Showing default categories instead.');
     }
   };
 
@@ -96,15 +106,24 @@ function App() {
         // Add new expense to state
         setExpenses([response.data.data, ...expenses]);
         setError(null);
+        showSuccess('Expense added successfully.');
         // Go back to dashboard after adding
         setCurrentPage('dashboard');
       }
     } catch (err) {
       console.error('Error adding expense:', err);
-      setError('Failed to add expense');
+      setError('Failed to add expense. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  /**
+   * Show a success message that auto-dismisses after a few seconds
+   */
+  const showSuccess = (message) => {
+    setSuccessMessage(message);
+    setTimeout(() => setSuccessMessage(null), 4000);
   };
 
   /**
@@ -121,10 +140,11 @@ function App() {
         // Remove from state
         setExpenses(expenses.filter(e => e.id !== expenseId));
         setError(null);
+        showSuccess('Expense deleted.');
       }
     } catch (err) {
       console.error('Error deleting expense:', err);
-      setError('Failed to delete expense');
+      setError('Failed to delete expense. Please try again.');
     }
   };
 
@@ -149,10 +169,11 @@ function App() {
         );
         setExpenses(updatedExpenses);
         setError(null);
+        showSuccess('Expense updated.');
       }
     } catch (err) {
       console.error('Error updating expense:', err);
-      setError('Failed to update expense');
+      setError('Failed to update expense. Please try again.');
     }
   };
 
@@ -167,6 +188,7 @@ function App() {
         return (
           <Dashboard
             expenses={expenses}
+            categories={categories}
             onDelete={handleDeleteExpense}
             onUpdate={handleUpdateExpense}
           />
@@ -197,28 +219,32 @@ function App() {
           <h1 className="app-title">💰 AI Expense Analyzer</h1>
           
           {/* Navigation Menu */}
-          <nav className="nav-menu">
+          <nav className="nav-menu" aria-label="Main navigation">
             <button
               className={`nav-btn ${currentPage === 'dashboard' ? 'active' : ''}`}
               onClick={() => setCurrentPage('dashboard')}
+              aria-current={currentPage === 'dashboard' ? 'page' : undefined}
             >
               📊 Dashboard
             </button>
             <button
               className={`nav-btn ${currentPage === 'add' ? 'active' : ''}`}
               onClick={() => setCurrentPage('add')}
+              aria-current={currentPage === 'add' ? 'page' : undefined}
             >
               ➕ Add Expense
             </button>
             <button
               className={`nav-btn ${currentPage === 'analytics' ? 'active' : ''}`}
               onClick={() => setCurrentPage('analytics')}
+              aria-current={currentPage === 'analytics' ? 'page' : undefined}
             >
               📈 Analytics
             </button>
             <button
               className={`nav-btn ${currentPage === 'predictions' ? 'active' : ''}`}
               onClick={() => setCurrentPage('predictions')}
+              aria-current={currentPage === 'predictions' ? 'page' : undefined}
             >
               🔮 Predictions
             </button>
@@ -230,9 +256,17 @@ function App() {
       <main className="app-main">
         {/* Error Message Display */}
         {error && (
-          <div className="error-banner">
+          <div className="error-banner" role="alert">
             <span>{error}</span>
-            <button onClick={() => setError(null)}>✕</button>
+            <button onClick={() => setError(null)} aria-label="Dismiss error">✕</button>
+          </div>
+        )}
+
+        {/* Success Message Display */}
+        {successMessage && (
+          <div className="success-banner" role="status">
+            <span>✓ {successMessage}</span>
+            <button onClick={() => setSuccessMessage(null)} aria-label="Dismiss message">✕</button>
           </div>
         )}
 

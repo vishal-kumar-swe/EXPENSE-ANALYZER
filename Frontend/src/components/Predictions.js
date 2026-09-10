@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
 /**
  * Predictions Component
@@ -20,7 +21,7 @@ function Predictions() {
   const [error, setError] = useState(null);
   const [nextMonth, setNextMonth] = useState('');
 
-  const API_BASE = 'http://localhost:5000/api';
+  const API_BASE = API_BASE_URL;
 
   // ===== Lifecycle Hooks =====
 
@@ -33,6 +34,7 @@ function Predictions() {
     const today = new Date();
     const next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
     setNextMonth(next.toLocaleDateString('en-US', { year: 'numeric', month: 'long' }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [method]);
 
   // ===== API Functions =====
@@ -88,9 +90,9 @@ function Predictions() {
    * Get confidence color based on score
    */
   const getConfidenceColor = (confidence) => {
-    if (confidence >= 0.8) return '#4CAF50'; // Green
-    if (confidence >= 0.6) return '#FFC107'; // Yellow
-    return '#f44336'; // Red
+    if (confidence >= 0.8) return '#16a34a'; // Green (success)
+    if (confidence >= 0.6) return '#d97706'; // Amber (warning)
+    return '#dc2626'; // Red (danger)
   };
 
   /**
@@ -140,7 +142,7 @@ function Predictions() {
               </div>
               <div className="confidence-info">
                 <span className="confidence-value">
-                  {(prediction.confidence * 100).toFixed(0)}%
+                  {((prediction.confidence || 0) * 100).toFixed(0)}%
                 </span>
                 <span className="confidence-label">
                   {getConfidenceLabel(prediction.confidence)} Confidence
@@ -204,7 +206,8 @@ function Predictions() {
   if (loading && Object.keys(predictions).length === 0) {
     return (
       <div className="predictions">
-        <div className="loading">
+        <div className="loading-spinner">
+          <div className="spinner"></div>
           <p>Generating predictions...</p>
         </div>
       </div>
@@ -217,8 +220,11 @@ function Predictions() {
   return (
     <div className="predictions">
       {error && (
-        <div className="error-banner">
-          <p>{error}</p>
+        <div className="error-banner" role="alert">
+          <span>{error}</span>
+          <button onClick={fetchPredictions} aria-label="Retry loading predictions">
+            🔄 Retry
+          </button>
         </div>
       )}
 

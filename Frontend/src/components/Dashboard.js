@@ -14,10 +14,11 @@ import React, { useMemo, useState } from 'react';
  * 
  * Props:
  *  - expenses: Array of expense objects
+ *  - categories: Array of available category names (for the edit dropdown)
  *  - onDelete: Callback function to delete expense
  *  - onUpdate: Callback function to update expense
  */
-function Dashboard({ expenses, onDelete, onUpdate }) {
+function Dashboard({ expenses, categories = [], onDelete, onUpdate }) {
   // ===== State =====
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [editingId, setEditingId] = useState(null);
@@ -157,11 +158,22 @@ function Dashboard({ expenses, onDelete, onUpdate }) {
                 className={`category-item ${
                   selectedCategory === category ? 'selected' : ''
                 }`}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selectedCategory === category}
                 onClick={() =>
                   setSelectedCategory(
                     selectedCategory === category ? null : category
                   )
                 }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedCategory(
+                      selectedCategory === category ? null : category
+                    );
+                  }
+                }}
               >
                 <div className="category-info">
                   <h4>{category}</h4>
@@ -222,46 +234,60 @@ function Dashboard({ expenses, onDelete, onUpdate }) {
                   {/* Edit Mode */}
                   {editingId === expense.id ? (
                     <>
-                      <div className="col-date">
+                      <div className="col-date" data-label="Date">
                         <input
                           type="date"
                           value={editData.date}
                           onChange={(e) =>
                             handleEditChange('date', e.target.value)
                           }
+                          aria-label="Date"
                         />
                       </div>
-                      <div className="col-category">
-                        <input
-                          type="text"
+                      <div className="col-category" data-label="Category">
+                        <select
                           value={editData.category}
                           onChange={(e) =>
                             handleEditChange('category', e.target.value)
                           }
-                        />
+                          aria-label="Category"
+                        >
+                          {!categories.includes(editData.category) && editData.category && (
+                            <option value={editData.category}>{editData.category}</option>
+                          )}
+                          {categories.map(cat => (
+                            <option key={cat} value={cat}>
+                              {cat}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                      <div className="col-description">
+                      <div className="col-description" data-label="Description">
                         <input
                           type="text"
                           value={editData.description || ''}
                           onChange={(e) =>
                             handleEditChange('description', e.target.value)
                           }
+                          aria-label="Description"
                         />
                       </div>
-                      <div className="col-amount">
+                      <div className="col-amount" data-label="Amount">
                         <input
                           type="number"
+                          step="0.01"
+                          min="0"
                           value={editData.amount}
                           onChange={(e) =>
                             handleEditChange('amount', parseFloat(e.target.value))
                           }
+                          aria-label="Amount"
                         />
                       </div>
-                      <div className="col-status">
+                      <div className="col-status" data-label="Status">
                         {expense.is_flagged && <span className="flag-badge">⚠️ Unusual</span>}
                       </div>
-                      <div className="col-actions">
+                      <div className="col-actions" data-label="Actions">
                         <button
                           className="save-btn"
                           onClick={() => handleSave(expense.id)}
@@ -279,18 +305,18 @@ function Dashboard({ expenses, onDelete, onUpdate }) {
                   ) : (
                     /* View Mode */
                     <>
-                      <div className="col-date">{expense.date}</div>
-                      <div className="col-category">{expense.category}</div>
-                      <div className="col-description">
+                      <div className="col-date" data-label="Date">{expense.date}</div>
+                      <div className="col-category" data-label="Category">{expense.category}</div>
+                      <div className="col-description" data-label="Description">
                         {expense.description || '-'}
                       </div>
-                      <div className="col-amount">₹{expense.amount.toFixed(2)}</div>
-                      <div className="col-status">
+                      <div className="col-amount" data-label="Amount">₹{expense.amount.toFixed(2)}</div>
+                      <div className="col-status" data-label="Status">
                         {expense.is_flagged && (
                           <span className="flag-badge">⚠️ Unusual</span>
                         )}
                       </div>
-                      <div className="col-actions">
+                      <div className="col-actions" data-label="Actions">
                         <button
                           className="edit-btn"
                           onClick={() => handleEdit(expense)}

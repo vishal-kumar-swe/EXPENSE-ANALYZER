@@ -41,8 +41,17 @@ class Config:
     PERMANENT_SESSION_LIFETIME = timedelta(days=7)
     
     # ===== CORS SETTINGS =====
-    # Allow frontend to communicate with backend
-    CORS_ORIGINS = ["http://localhost:3000", "http://localhost:5000"]
+    # Allow frontend to communicate with backend.
+    # Deployed frontend origin is included by default so the production
+    # build (which has no way to run on localhost) isn't blocked by CORS.
+    # Override/extend via the CORS_ORIGINS env var (comma-separated) if the
+    # frontend is ever deployed to a different URL.
+    _default_cors_origins = (
+        "http://localhost:3000,"
+        "http://localhost:5000,"
+        "https://expense-analyzer-frontend.onrender.com"
+    )
+    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', _default_cors_origins).split(',')
     
     # ===== EXPENSE ANALYSIS SETTINGS =====
     # Number of days to consider for anomaly detection
