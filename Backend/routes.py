@@ -6,13 +6,14 @@
 # ===================================================================
 
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import get_jwt_identity
 from datetime import date, datetime, timedelta
 import calendar
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 from models import db, Expense, Budget, Prediction, AnomalyLog, MonthlyIncome
 from ai_engine import ExpenseAnalyzer
+from access_control import student_required
 
 # Create Blueprint for organizing routes
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -56,7 +57,7 @@ def expenses_to_df(expenses):
 # ===================================================================
 
 @api_bp.route('/expenses', methods=['GET'])
-@jwt_required()
+@student_required
 def get_expenses():
     """
     GET all expenses for the user
@@ -104,7 +105,7 @@ def get_expenses():
         }), 500
 
 @api_bp.route('/expenses', methods=['POST'])
-@jwt_required()
+@student_required
 def create_expense():
     """
     POST - Create a new expense
@@ -164,7 +165,7 @@ def create_expense():
         }), 500
 
 @api_bp.route('/expenses/<int:expense_id>', methods=['GET'])
-@jwt_required()
+@student_required
 def get_expense(expense_id):
     """
     GET a specific expense by ID
@@ -196,7 +197,7 @@ def get_expense(expense_id):
         }), 500
 
 @api_bp.route('/expenses/<int:expense_id>', methods=['PUT'])
-@jwt_required()
+@student_required
 def update_expense(expense_id):
     """
     PUT - Update an existing expense
@@ -243,7 +244,7 @@ def update_expense(expense_id):
         }), 500
 
 @api_bp.route('/expenses/<int:expense_id>', methods=['DELETE'])
-@jwt_required()
+@student_required
 def delete_expense(expense_id):
     """
     DELETE - Remove an expense
@@ -276,7 +277,7 @@ def delete_expense(expense_id):
         }), 500
 
 @api_bp.route('/expenses/analysis', methods=['GET'])
-@jwt_required()
+@student_required
 def get_expenses_analysis():
     """
     GET - Pre-aggregated expense totals for the Report section, grouped
@@ -374,7 +375,7 @@ def get_expenses_analysis():
 # ===================================================================
 
 @api_bp.route('/analysis/anomalies', methods=['GET'])
-@jwt_required()
+@student_required
 def get_anomalies():
     """
     GET - Detect anomalies in spending
@@ -436,7 +437,7 @@ def get_anomalies():
         }), 500
 
 @api_bp.route('/analysis/statistics', methods=['GET'])
-@jwt_required()
+@student_required
 def get_statistics():
     """
     GET - Get spending statistics
@@ -479,7 +480,7 @@ def get_statistics():
         }), 500
 
 @api_bp.route('/analysis/trends', methods=['GET'])
-@jwt_required()
+@student_required
 def get_trends():
     """
     GET - Get monthly spending trends
@@ -517,7 +518,7 @@ def get_trends():
         }), 500
 
 @api_bp.route('/analysis/insights', methods=['GET'])
-@jwt_required()
+@student_required
 def get_insights():
     """
     GET - Get category insights and recommendations
@@ -564,51 +565,66 @@ def get_insights():
 # ===================================================================
 
 @api_bp.route('/predictions', methods=['GET'])
-@jwt_required()
+@student_required
 def get_predictions():
     """
     GET - Get expense predictions for next month
 
     Query Parameters:
-        - method: 'linear' or 'exponential' (default='linear')
+        - method: 'ensemble' (default), 'linear', or 'exponential'
+                  'ensemble' blends linear regression + exponential
+                  smoothing and additionally reports insufficient-data
+                  categories and a forward-looking safe-daily-spend
+                  summary; 'linear'/'exponential' return the raw
+                  single-method per-category predictions only (kept for
+                  anyone who wants to see one model in isolation).
 
     Returns:
-        Predicted expenses per category
+        Predicted expenses per category (shape depends on `method`)
     """
     try:
-        method = request.args.get('method', 'linear')
+        method = request.args.get('method', 'ensemble')
+        user_id = int(get_jwt_identity())
 
         # Get last 6 months of expenses
         start_date = datetime.now() - timedelta(days=180)
-        expenses = Expense.query.filter_by(user_id=int(get_jwt_identity())).filter(
+        expenses = Expense.query.filter_by(user_id=user_id).filter(
             Expense.date >= start_date.date()
         ).all()
-        
-        expenses_df = pd.DataFrame([{
-            'category': e.category,
-            'amount': e.amount,
-            'date': e.date
-        } for e in expenses])
-        
+
+        expenses_df = expenses_to_df(expenses)
+
+        if method == 'ensemble':
+            today = datetime.now().date()
+            income_row = MonthlyIncome.query.filter_by(
+                user_id=user_id, month=today.replace(day=1)
+            ).first()
+            predictions = analyzer.predict_expenses_ensemble(
+                expenses_df,
+                income_amount=income_row.amount if income_row else None,
+                today=today
+            )
+            return jsonify({'success': True, 'data': predictions, 'method': 'ensemble'}), 200
+
         if len(expenses_df) == 0:
             return jsonify({
                 'success': True,
                 'data': {},
                 'message': 'Insufficient data for predictions'
             }), 200
-        
-        # Make predictions
+
+        # Legacy single-method views
         if method == 'exponential':
             predictions = analyzer.predict_expenses_exponential_smoothing(expenses_df)
         else:
             predictions = analyzer.predict_expenses_linear_regression(expenses_df)
-        
+
         return jsonify({
             'success': True,
             'data': predictions,
             'method': method
         }), 200
-    
+
     except Exception as e:
         return jsonify({
             'success': False,
@@ -620,7 +636,7 @@ def get_predictions():
 # ===================================================================
 
 @api_bp.route('/income', methods=['GET'])
-@jwt_required()
+@student_required
 def get_income():
     """
     GET - The logged-in user's income for one month (defaults to the
@@ -649,7 +665,7 @@ def get_income():
         }), 500
 
 @api_bp.route('/income', methods=['PUT'])
-@jwt_required()
+@student_required
 def set_income():
     """
     PUT - Create or update the logged-in user's income for one month

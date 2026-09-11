@@ -26,6 +26,7 @@ import {
   Filler
 } from 'chart.js';
 import { format, subMonths, startOfMonth } from 'date-fns';
+import { FiBarChart2, FiRefreshCw } from 'react-icons/fi';
 import { API_BASE_URL } from '../config';
 import { getCategoryColor } from '../utils/categoryColors';
 
@@ -502,7 +503,7 @@ function Report() {
               </div>
               <div className="form-actions">
                 <button type="submit" className="submit-btn" disabled={savingIncome}>
-                  {savingIncome ? '⏳ Saving...' : '✓ Save'}
+                  {savingIncome ? 'Saving...' : 'Save'}
                 </button>
                 <button
                   type="button"
@@ -517,7 +518,7 @@ function Report() {
           ) : (
             <div className="income-display">
               <span className="income-amount">₹{(income?.amount || 0).toFixed(2)}</span>
-              <button className="edit-btn" onClick={startEditingIncome}>✎ Edit</button>
+              <button className="edit-btn" onClick={startEditingIncome}>Edit</button>
             </div>
           )}
         </div>
@@ -532,7 +533,7 @@ function Report() {
   return (
     <section className="report-section">
       <div className="report-header">
-        <h2>📊 Report</h2>
+        <h2><FiBarChart2 aria-hidden="true" /> Report</h2>
         <div className="report-controls">
           <div className="report-tabs" role="tablist" aria-label="Report view">
             <button
@@ -572,7 +573,7 @@ function Report() {
             onClick={() => { fetchAnalysis(); fetchIncome(); }}
             aria-label="Retry loading report data"
           >
-            🔄 Retry
+<FiRefreshCw aria-hidden="true" /> Retry
           </button>
         </div>
       )}

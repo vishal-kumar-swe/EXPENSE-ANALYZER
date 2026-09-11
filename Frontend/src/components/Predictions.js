@@ -1,221 +1,87 @@
 // ===================================================================
 // PREDICTIONS COMPONENT - Predictions.js
 // ===================================================================
-// Shows AI-generated predictions for future expenses
-// Uses multiple forecasting methods
+// Forward-looking forecast view, backed by GET /api/predictions
+// (defaults to method=ensemble - see Backend/ai_engine.py
+// predict_expenses_ensemble). Leads with "what can I do with this
+// money" (safe daily spend) rather than a wall of past transactions,
+// and explicitly explains categories that don't have enough history
+// yet instead of silently omitting them.
 // ===================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { FiTrendingUp, FiTrendingDown, FiMinus, FiRefreshCw, FiInfo, FiAlertCircle } from 'react-icons/fi';
 import { API_BASE_URL } from '../config';
 
-/**
- * Predictions Component
- * Shows forecasted expenses for next month
- */
+function getConfidenceColor(confidence) {
+  if (confidence >= 0.7) return 'var(--success-color)';
+  if (confidence >= 0.4) return 'var(--warning-color)';
+  return 'var(--danger-color)';
+}
+
+function getConfidenceLabel(confidence) {
+  if (confidence >= 0.7) return 'High';
+  if (confidence >= 0.4) return 'Medium';
+  return 'Low';
+}
+
+function TrendIcon({ trend }) {
+  if (trend === 'increasing') return <FiTrendingUp aria-hidden="true" className="trend-icon increasing" />;
+  if (trend === 'decreasing') return <FiTrendingDown aria-hidden="true" className="trend-icon decreasing" />;
+  return <FiMinus aria-hidden="true" className="trend-icon" />;
+}
+
 function Predictions() {
-  // ===== State =====
-  const [predictions, setPredictions] = useState({});
-  const [method, setMethod] = useState('linear');
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [nextMonth, setNextMonth] = useState('');
+  const [nextMonthLabel, setNextMonthLabel] = useState('');
 
-  const API_BASE = API_BASE_URL;
-
-  // ===== Lifecycle Hooks =====
-
-  /**
-   * Fetch predictions on component mount and method change
-   */
   useEffect(() => {
-    fetchPredictions();
-    // Set next month text
     const today = new Date();
     const next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-    setNextMonth(next.toLocaleDateString('en-US', { year: 'numeric', month: 'long' }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [method]);
+    setNextMonthLabel(next.toLocaleDateString('en-US', { year: 'numeric', month: 'long' }));
+  }, []);
 
-  // ===== API Functions =====
-
-  /**
-   * Fetch predictions from backend
-   */
-  const fetchPredictions = async () => {
+  const fetchPredictions = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-
-      const response = await axios.get(
-        `${API_BASE}/predictions?method=${method}`
-      );
-
+      const response = await axios.get(`${API_BASE_URL}/predictions`);
       if (response.data.success) {
-        setPredictions(response.data.data);
+        setData(response.data.data);
       }
     } catch (err) {
       console.error('Error fetching predictions:', err);
-      setError('Failed to load predictions');
+      setError('Failed to load your forecast. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // ===== Calculation Functions =====
+  useEffect(() => { fetchPredictions(); }, [fetchPredictions]);
 
-  /**
-   * Calculate total predicted amount
-   */
-  const getTotalPrediction = () => {
-    return Object.values(predictions).reduce(
-      (sum, pred) => sum + (pred.predicted_amount || 0),
-      0
-    );
-  };
-
-  /**
-   * Get average confidence score
-   */
-  const getAverageConfidence = () => {
-    const confidences = Object.values(predictions)
-      .map(p => p.confidence || 0)
-      .filter(c => c > 0);
-
-    if (confidences.length === 0) return 0;
-    return confidences.reduce((sum, c) => sum + c, 0) / confidences.length;
-  };
-
-  /**
-   * Get confidence color based on score
-   */
-  const getConfidenceColor = (confidence) => {
-    if (confidence >= 0.8) return '#16a34a'; // Green (success)
-    if (confidence >= 0.6) return '#d97706'; // Amber (warning)
-    return '#dc2626'; // Red (danger)
-  };
-
-  /**
-   * Get confidence label
-   */
-  const getConfidenceLabel = (confidence) => {
-    if (confidence >= 0.8) return 'High';
-    if (confidence >= 0.6) return 'Medium';
-    return 'Low';
-  };
-
-  // ===== Render Functions =====
-
-  /**
-   * Render prediction cards
-   */
-  const renderPredictions = () => {
-    if (Object.keys(predictions).length === 0) {
-      return (
-        <div className="empty-state">
-          <p>📊 Not enough historical data to make predictions.</p>
-          <p>Try adding more expenses first!</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="predictions-grid">
-        {Object.entries(predictions).map(([category, prediction]) => (
-          <div key={category} className="prediction-card">
-            <h3>{category}</h3>
-
-            <div className="prediction-amount">
-              <p className="amount">₹{prediction.predicted_amount?.toFixed(2)}</p>
-              <span className="label">Predicted Amount</span>
-            </div>
-
-            <div className="prediction-confidence">
-              <div className="confidence-bar">
-                <div
-                  className="confidence-fill"
-                  style={{
-                    width: `${(prediction.confidence || 0) * 100}%`,
-                    backgroundColor: getConfidenceColor(prediction.confidence)
-                  }}
-                ></div>
-              </div>
-              <div className="confidence-info">
-                <span className="confidence-value">
-                  {((prediction.confidence || 0) * 100).toFixed(0)}%
-                </span>
-                <span className="confidence-label">
-                  {getConfidenceLabel(prediction.confidence)} Confidence
-                </span>
-              </div>
-            </div>
-
-            {prediction.historical_average && (
-              <div className="prediction-comparison">
-                <p>
-                  <strong>Historical Avg:</strong> ₹
-                  {prediction.historical_average.toFixed(2)}
-                </p>
-                <p>
-                  <strong>Difference:</strong>{' '}
-                  <span
-                    className={
-                      prediction.predicted_amount >
-                      prediction.historical_average
-                        ? 'increase'
-                        : 'decrease'
-                    }
-                  >
-                    {prediction.predicted_amount >
-                    prediction.historical_average
-                      ? '↑'
-                      : '↓'}{' '}
-                    {Math.abs(
-                      (
-                        ((prediction.predicted_amount -
-                          prediction.historical_average) /
-                          prediction.historical_average) *
-                        100
-                      ).toFixed(1)
-                    )}
-                    %
-                  </span>
-                </p>
-              </div>
-            )}
-
-            {prediction.trend && (
-              <div className="prediction-trend">
-                <p>
-                  <strong>Trend:</strong>{' '}
-                  <span className={`trend ${prediction.trend}`}>
-                    {prediction.trend === 'increasing' ? '📈' : '📉'}{' '}
-                    {prediction.trend.toUpperCase()}
-                  </span>
-                </p>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  // ===== Main Render =====
-
-  if (loading && Object.keys(predictions).length === 0) {
+  if (loading) {
     return (
       <div className="predictions">
         <div className="loading-spinner">
           <div className="spinner"></div>
-          <p>Generating predictions...</p>
+          <p>Building your forecast...</p>
         </div>
       </div>
     );
   }
 
-  const totalPrediction = getTotalPrediction();
-  const avgConfidence = getAverageConfidence();
+  const categories = data?.categories || {};
+  const insufficient = data?.insufficient_categories || [];
+  const summary = data?.summary;
+  const hasAnyPrediction = Object.keys(categories).length > 0;
+  const hasNoDataAtAll = !hasAnyPrediction && insufficient.length === 0 && (!summary || summary.basis === 'none');
+
+  const sortedCategories = Object.entries(categories).sort(
+    (a, b) => b[1].predicted_amount - a[1].predicted_amount
+  );
 
   return (
     <div className="predictions">
@@ -223,104 +89,170 @@ function Predictions() {
         <div className="error-banner" role="alert">
           <span>{error}</span>
           <button onClick={fetchPredictions} aria-label="Retry loading predictions">
-            🔄 Retry
+            <FiRefreshCw aria-hidden="true" /> Retry
           </button>
         </div>
       )}
 
-      {/* Header Section */}
       <section className="predictions-header">
         <div className="header-content">
-          <h2>🔮 Expense Predictions for {nextMonth}</h2>
+          <h2>Looking Ahead to {nextMonthLabel}</h2>
           <p className="subtitle">
-            AI-powered forecasts based on your spending history
+            A blended forecast (trend + recent-behavior models), grounded in your actual income
+            when you've set one.
           </p>
         </div>
-
-        {/* Method Selector */}
-        <div className="method-selector">
-          <label>Prediction Method:</label>
-          <select value={method} onChange={(e) => setMethod(e.target.value)}>
-            <option value="linear">Linear Regression (Trend-based)</option>
-            <option value="exponential">
-              Exponential Smoothing (Recent-focused)
-            </option>
-          </select>
-        </div>
       </section>
 
-      {/* Summary Cards */}
-      {Object.keys(predictions).length > 0 && (
-        <section className="summary-cards">
-          <div className="summary-card">
-            <h3>Total Predicted Spending</h3>
-            <p className="summary-value">₹{totalPrediction.toFixed(2)}</p>
-            <span className="summary-label">For {nextMonth}</span>
-          </div>
-          <div className="summary-card">
-            <h3>Average Confidence</h3>
-            <div className="confidence-gauge">
-              <div
-                className="gauge-fill"
-                style={{
-                  width: `${avgConfidence * 100}%`,
-                  backgroundColor: getConfidenceColor(avgConfidence)
-                }}
-              ></div>
-            </div>
-            <p className="summary-value">{(avgConfidence * 100).toFixed(0)}%</p>
-            <span className="summary-label">
-              {getConfidenceLabel(avgConfidence)} Confidence
-            </span>
+      {hasNoDataAtAll ? (
+        <section>
+          <div className="empty-state">
+            <p>Add a few expenses to unlock a forecast - the more history you log, the more reliable it gets.</p>
           </div>
         </section>
+      ) : (
+        <>
+          {summary && (
+            <section className="safe-spend-hero">
+              <div className="safe-spend-main">
+                <span className="safe-spend-label">Safe to spend, per day, for the rest of this month</span>
+                <span className="safe-spend-value">
+                  {summary.safe_daily_spend != null ? `₹${summary.safe_daily_spend.toFixed(0)}` : '—'}
+                </span>
+                <span className="safe-spend-note">{summary.note}</span>
+              </div>
+              <div className="safe-spend-stats">
+                <div className="safe-spend-stat">
+                  <span className="stat-value">₹{summary.total_predicted_next_month.toFixed(0)}</span>
+                  <span className="stat-label">Predicted total, {nextMonthLabel}</span>
+                </div>
+                <div className="safe-spend-stat">
+                  <span className="stat-value" style={{ color: getConfidenceColor(summary.overall_confidence) }}>
+                    {(summary.overall_confidence * 100).toFixed(0)}%
+                  </span>
+                  <span className="stat-label">{getConfidenceLabel(summary.overall_confidence)} confidence</span>
+                </div>
+                <div className="safe-spend-stat">
+                  <span className="stat-value">{summary.days_remaining_this_month}</span>
+                  <span className="stat-label">Days remaining</span>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {hasAnyPrediction && (
+            <section className="predictions-section">
+              <h3>Category Forecasts</h3>
+              <div className="predictions-grid">
+                {sortedCategories.map(([category, prediction]) => (
+                  <div key={category} className="prediction-card">
+                    <h3>{category}</h3>
+
+                    <div className="prediction-amount">
+                      <p className="amount">₹{prediction.predicted_amount.toFixed(2)}</p>
+                      <span className="label">Predicted Amount</span>
+                    </div>
+
+                    <div className="prediction-confidence">
+                      <div className="confidence-bar">
+                        <div
+                          className="confidence-fill"
+                          style={{
+                            width: `${prediction.confidence * 100}%`,
+                            backgroundColor: getConfidenceColor(prediction.confidence)
+                          }}
+                        />
+                      </div>
+                      <div className="confidence-info">
+                        <span className="confidence-value">{(prediction.confidence * 100).toFixed(0)}%</span>
+                        <span className="confidence-label">{getConfidenceLabel(prediction.confidence)} Confidence</span>
+                      </div>
+                    </div>
+
+                    <div className="prediction-comparison">
+                      <p><strong>Historical Avg:</strong> ₹{prediction.historical_average.toFixed(2)}</p>
+                    </div>
+
+                    <div className="prediction-trend">
+                      <p>
+                        <strong>Trend:</strong>{' '}
+                        <span className={`trend ${prediction.trend}`}>
+                          <TrendIcon trend={prediction.trend} /> {prediction.trend.toUpperCase()}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {insufficient.length > 0 && (
+            <section className="predictions-section">
+              <h3>Not Enough Data Yet</h3>
+              <div className="insufficient-grid">
+                {insufficient.map((item) => (
+                  <div key={item.category} className="insufficient-card">
+                    <FiAlertCircle aria-hidden="true" className="insufficient-icon" />
+                    <div>
+                      <h4>{item.category}</h4>
+                      <p>{item.message}</p>
+                      <div className="insufficient-progress">
+                        <div
+                          className="insufficient-progress-fill"
+                          style={{ width: `${Math.min((item.data_points / item.needed) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <span className="field-hint">{item.data_points} of {item.needed} transactions logged</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="predictions-info">
+            <h3><FiInfo aria-hidden="true" /> How This Forecast Works</h3>
+            <div className="info-grid">
+              <div className="info-card">
+                <h4>Blended Modeling</h4>
+                <p>
+                  Each category's forecast blends a trend-based model (Linear Regression) with a
+                  recent-behavior model (Exponential Smoothing), which helps cancel out either
+                  model's individual blind spots.
+                </p>
+              </div>
+              <div className="info-card">
+                <h4>Confidence Scores</h4>
+                <p>
+                  Higher confidence means more consistent historical patterns. Low confidence
+                  indicates variable spending - treat those numbers as rough guides, not guarantees.
+                </p>
+              </div>
+              <div className="info-card">
+                <h4>Safe Daily Spend</h4>
+                <p>
+                  {summary?.basis === 'income'
+                    ? "Calculated from your entered income minus what you've already spent this month, divided across the days remaining."
+                    : "Calculated from your predicted spending since no income is set yet. Add your income in Report → Income for a more accurate number."}
+                </p>
+              </div>
+              <div className="info-card">
+                <h4>Insufficient Data</h4>
+                <p>
+                  Categories need at least a handful of transactions before a forecast is
+                  statistically meaningful - we show exactly how many more you need instead of
+                  guessing.
+                </p>
+              </div>
+            </div>
+          </section>
+        </>
       )}
 
-      {/* Predictions Grid */}
-      <section className="predictions-section">
-        <h3>📊 Category-wise Predictions</h3>
-        {renderPredictions()}
-      </section>
-
-      {/* Information Section */}
-      <section className="predictions-info">
-        <h3>ℹ️ How Predictions Work</h3>
-        <div className="info-grid">
-          <div className="info-card">
-            <h4>Linear Regression</h4>
-            <p>
-              Analyzes spending trends over time and projects them forward. Best
-              for categories with consistent trends.
-            </p>
-          </div>
-          <div className="info-card">
-            <h4>Exponential Smoothing</h4>
-            <p>
-              Gives more weight to recent spending patterns. Better captures
-              recent behavior changes.
-            </p>
-          </div>
-          <div className="info-card">
-            <h4>Confidence Scores</h4>
-            <p>
-              Higher confidence means more consistent historical patterns.
-              Low confidence indicates variable spending.
-            </p>
-          </div>
-          <div className="info-card">
-            <h4>Use These Predictions</h4>
-            <p>
-              Set budgets based on these predictions, track actual vs predicted,
-              and adjust spending habits accordingly.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Action Buttons */}
       <div className="predictions-actions">
         <button onClick={fetchPredictions} className="refresh-btn">
-          🔄 Refresh Predictions
+          <FiRefreshCw aria-hidden="true" /> Refresh Forecast
         </button>
       </div>
     </div>

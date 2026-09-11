@@ -6,6 +6,7 @@
 // ===================================================================
 
 import React, { useState } from 'react';
+import { FiPlusCircle, FiCheck, FiRefreshCw, FiInfo } from 'react-icons/fi';
 
 /**
  * ExpenseForm Component
@@ -152,7 +153,7 @@ function ExpenseForm({ categories, onSubmit }) {
   return (
     <div className="expense-form-container">
       <div className="form-card">
-        <h2>➕ Add New Expense</h2>
+        <h2><FiPlusCircle aria-hidden="true" /> Add New Expense</h2>
 
         <form onSubmit={handleSubmit} className="expense-form">
           {/* Category Field */}
@@ -257,7 +258,7 @@ function ExpenseForm({ categories, onSubmit }) {
               className="submit-btn"
               disabled={isSubmitting}
             >
-              {isSubmitting ? '⏳ Adding...' : '✓ Add Expense'}
+              {isSubmitting ? 'Adding...' : (<><FiCheck aria-hidden="true" /> Add Expense</>)}
             </button>
             <button
               type="reset"
@@ -265,14 +266,14 @@ function ExpenseForm({ categories, onSubmit }) {
               className="reset-btn"
               disabled={isSubmitting}
             >
-              🔄 Clear
+              <FiRefreshCw aria-hidden="true" /> Clear
             </button>
           </div>
         </form>
 
         {/* Form Tips */}
         <div className="form-tips">
-          <h3>💡 Tips:</h3>
+          <h3><FiInfo aria-hidden="true" /> Tips:</h3>
           <ul>
             <li>Be specific with categories - it helps with analysis</li>
             <li>Add descriptions for unusual expenses</li>

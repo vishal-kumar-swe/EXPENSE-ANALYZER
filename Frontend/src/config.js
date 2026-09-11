@@ -26,6 +26,9 @@ export const API_BASE_URL =
 export const TOKEN_KEY = 'expenseAnalyzer.token';
 export const USER_KEY = 'expenseAnalyzer.user';
 
+// localStorage key for the light/dark theme preference (see ThemeContext).
+export const THEME_KEY = 'expenseAnalyzer.theme';
+
 // Fallback categories shown if the /categories endpoint is ever
 // unreachable, so the "Select Category" dropdown is never empty.
 // Mirrors Backend/config.py Config.EXPENSE_CATEGORIES.

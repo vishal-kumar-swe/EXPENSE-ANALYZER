@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { FiAlertTriangle, FiZap, FiRefreshCw } from 'react-icons/fi';
 import { API_BASE_URL } from '../config';
 import Report from './Report';
 
@@ -88,7 +89,7 @@ function Analytics({ expenses }) {
     if (allAnomalies.length === 0) {
       return (
         <div className="empty-state">
-          <p>✓ No anomalies detected! Your spending looks normal.</p>
+          <p>No anomalies detected — your spending looks normal.</p>
         </div>
       );
     }
@@ -101,7 +102,7 @@ function Analytics({ expenses }) {
             className={`anomaly-card severity-${anomaly.severity || 3}`}
           >
             <div className="anomaly-header">
-              <h4>⚠️ {anomaly.category}</h4>
+              <h4><FiAlertTriangle aria-hidden="true" /> {anomaly.category}</h4>
               <span className="severity-badge">
                 Severity: {anomaly.severity || '?'}
               </span>
@@ -199,7 +200,7 @@ function Analytics({ expenses }) {
         <div className="error-banner" role="alert">
           <span>{error}</span>
           <button onClick={fetchAnalytics} aria-label="Retry loading analytics">
-            🔄 Retry
+            <FiRefreshCw aria-hidden="true" /> Retry
           </button>
         </div>
       )}
@@ -210,7 +211,7 @@ function Analytics({ expenses }) {
       {/* Anomaly Detection Section */}
       <section className="analytics-section">
         <div className="section-header">
-          <h2>🚨 Anomaly Detection</h2>
+          <h2><FiAlertTriangle aria-hidden="true" /> Anomaly Detection</h2>
           <div className="method-selector">
             <label>Detection Method:</label>
             <select
@@ -227,14 +228,14 @@ function Analytics({ expenses }) {
 
       {/* Insights Section */}
       <section className="analytics-section">
-        <h2>💡 Category Insights & Recommendations</h2>
+        <h2><FiZap aria-hidden="true" /> Category Insights & Recommendations</h2>
         {renderInsights()}
       </section>
 
       {/* Refresh Button */}
       <div className="analytics-actions">
         <button onClick={fetchAnalytics} className="refresh-btn">
-          🔄 Refresh Analytics
+          <FiRefreshCw aria-hidden="true" /> Refresh Analytics
         </button>
       </div>
     </div>

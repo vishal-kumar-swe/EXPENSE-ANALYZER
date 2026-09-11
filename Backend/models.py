@@ -5,6 +5,7 @@
 # Using SQLAlchemy ORM for database operations
 # ===================================================================
 
+import secrets
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from sqlalchemy.sql import func
@@ -258,6 +259,98 @@ class Prediction(db.Model):
             'month': self.month.isoformat(),
             'confidence': round(self.confidence, 2),
             'created_at': self.created_at.isoformat()
+        }
+
+
+# ===================================================================
+# PARENTAL CONTROL MODEL
+# ===================================================================
+class ParentalControl(db.Model):
+    """
+    ParentalControl - links one student to (at most) one parent account
+    and holds the spending limit the parent sets.
+
+    There is intentionally NO `role` column on User. Instead, a user's
+    role is derived at query time (see access_control.py):
+      - "student" = default, unless they're linked as a parent below.
+      - "parent"  = they appear as parent_user_id on some row here.
+    This keeps parental control a pure additive feature - a brand new
+    table that db.create_all() picks up automatically - instead of an
+    ALTER TABLE on the existing, git-tracked users table.
+
+    Lifecycle:
+      1. Student calls POST /api/parental/generate-code -> creates this
+         row with a random link_code and parent_user_id=NULL.
+      2. A parent redeems that code (register or login) -> parent_user_id
+         is filled in. From that moment, that user account is a "parent
+         account" for every request in access_control.py.
+      3. The linked parent can PUT /api/parental/limit to set
+         spending_limit. They can never see category/description/date/
+         merchant-level detail - the parent-facing endpoints only ever
+         return an aggregate total.
+      4. The student can DELETE /api/parental/unlink at any time, which
+         deletes this row entirely (revokes access; the code stops
+         working and the old parent account becomes an ordinary,
+         unlinked account with no linked student).
+
+    Attributes:
+        id: Unique identifier
+        student_id: The student this row belongs to (one row per student)
+        parent_user_id: The linked parent's user id, or NULL until claimed
+        link_code: Random code the student shares out-of-band with a parent
+        spending_limit: Monthly limit the parent has set (NULL = not set yet)
+        created_at / updated_at: Bookkeeping timestamps
+    """
+
+    __tablename__ = 'parental_controls'
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True)
+    parent_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    link_code = db.Column(db.String(16), nullable=False, unique=True)
+    spending_limit = db.Column(db.Float, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @staticmethod
+    def generate_link_code():
+        """Short, shareable, hard-to-guess code (e.g. 'K7QX9P2M')."""
+        return secrets.token_hex(4).upper()
+
+    def __repr__(self):
+        return f'<ParentalControl student={self.student_id} parent={self.parent_user_id}>'
+
+    def to_student_dict(self):
+        """What the STUDENT is allowed to see about their own parental link."""
+        return {
+            'linked': self.parent_user_id is not None,
+            'link_code': self.link_code,
+            'spending_limit': self.spending_limit,
+            'updated_at': self.updated_at.isoformat()
+        }
+
+    def to_parent_summary_dict(self, student_username, total_spent, month_label):
+        """
+        What the PARENT is allowed to see - an aggregate total only.
+        Deliberately excludes category, description, date, merchant -
+        anything that would reveal what the money was spent on.
+        """
+        status = 'no_limit_set'
+        if self.spending_limit is not None and self.spending_limit > 0:
+            ratio = total_spent / self.spending_limit
+            if ratio >= 1:
+                status = 'over'
+            elif ratio >= 0.8:
+                status = 'near'
+            else:
+                status = 'under'
+
+        return {
+            'student_username': student_username,
+            'month': month_label,
+            'total_spent': total_spent,
+            'spending_limit': self.spending_limit,
+            'status': status
         }
 
 

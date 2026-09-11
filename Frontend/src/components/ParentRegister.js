@@ -1,17 +1,22 @@
 // ===================================================================
-// REGISTER PAGE - components/Register.js
+// PARENT REGISTER PAGE - components/ParentRegister.js
+// ===================================================================
+// First-time parent sign-up. Always requires the student's share code -
+// there is no way to create a parent account that isn't tied to a
+// specific student from the moment it exists (see
+// Backend/parental_routes.py parent_register).
 // ===================================================================
 
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
-import { FiUserPlus, FiX } from 'react-icons/fi';
+import { FiUsers, FiX } from 'react-icons/fi';
 import { API_BASE_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
-import ThemeToggle from './ThemeToggle';
 
-function Register() {
+function ParentRegister() {
   const [formData, setFormData] = useState({
+    linkCode: '',
     username: '',
     email: '',
     password: '',
@@ -27,7 +32,7 @@ function Register() {
   };
 
   const validate = () => {
-    if (!formData.username.trim() || !formData.email.trim() || !formData.password) {
+    if (!formData.linkCode.trim() || !formData.username.trim() || !formData.email.trim() || !formData.password) {
       return 'All fields are required.';
     }
     if (formData.password.length < 6) {
@@ -51,7 +56,8 @@ function Register() {
     setError(null);
     setIsSubmitting(true);
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/register`, {
+      const response = await axios.post(`${API_BASE_URL}/parental/register`, {
+        link_code: formData.linkCode.trim(),
         username: formData.username.trim(),
         email: formData.email.trim(),
         password: formData.password
@@ -70,9 +76,8 @@ function Register() {
 
   return (
     <div className="expense-form-container auth-page">
-      <ThemeToggle className="auth-theme-toggle" />
       <div className="form-card">
-        <h2><FiUserPlus aria-hidden="true" /> Create Account</h2>
+        <h2><FiUsers aria-hidden="true" /> Parent Sign Up</h2>
 
         {error && (
           <div className="error-banner" role="alert">
@@ -83,8 +88,25 @@ function Register() {
 
         <form onSubmit={handleSubmit} className="expense-form">
           <div className="form-group">
+            <label htmlFor="linkCode">
+              Student's Share Code <span className="required">*</span>
+            </label>
+            <input
+              type="text"
+              id="linkCode"
+              name="linkCode"
+              value={formData.linkCode}
+              onChange={handleChange}
+              placeholder="e.g. K7QX9P2M"
+              autoComplete="off"
+              style={{ textTransform: 'uppercase' }}
+            />
+            <small className="field-hint">Ask your student for this - it's in their Parental Access settings.</small>
+          </div>
+
+          <div className="form-group">
             <label htmlFor="username">
-              Username <span className="required">*</span>
+              Your Username <span className="required">*</span>
             </label>
             <input
               type="text"
@@ -92,14 +114,14 @@ function Register() {
               name="username"
               value={formData.username}
               onChange={handleChange}
-              placeholder="alice"
+              placeholder="priya_parent"
               autoComplete="username"
             />
           </div>
 
           <div className="form-group">
             <label htmlFor="email">
-              Email <span className="required">*</span>
+              Your Email <span className="required">*</span>
             </label>
             <input
               type="email"
@@ -145,17 +167,20 @@ function Register() {
 
           <div className="form-actions">
             <button type="submit" className="submit-btn" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating account...' : 'Create Account'}
+              {isSubmitting ? 'Creating account...' : 'Create Parent Account'}
             </button>
           </div>
         </form>
 
         <p className="auth-switch">
-          Already have an account? <Link to="/login">Log in</Link>
+          Already linked? <Link to="/parent-login">Parent sign in</Link>
+        </p>
+        <p className="auth-switch">
+          Not a parent? <Link to="/register">Student sign up</Link>
         </p>
       </div>
     </div>
   );
 }
 
-export default Register;
+export default ParentRegister;

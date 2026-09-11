@@ -9,10 +9,16 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import {
+  FiGrid, FiPlusCircle, FiBarChart2, FiTrendingUp, FiUsers, FiLogOut, FiUser, FiX
+} from 'react-icons/fi';
 import Dashboard from './Dashboard';
 import ExpenseForm from './ExpenseForm';
 import Analytics from './Analytics';
 import Predictions from './Predictions';
+import ParentalAccess from './ParentalAccess';
+import ChatbotWidget from './ChatbotWidget';
+import ThemeToggle from './ThemeToggle';
 import { API_BASE_URL, DEFAULT_CATEGORIES } from '../config';
 import { useAuth } from '../context/AuthContext';
 
@@ -208,6 +214,8 @@ function AppShell() {
         return <Analytics expenses={expenses} />;
       case 'predictions':
         return <Predictions />;
+      case 'family':
+        return <ParentalAccess />;
       default:
         return <Dashboard expenses={expenses} />;
     }
@@ -220,7 +228,7 @@ function AppShell() {
       {/* Header/Navigation Bar */}
       <header className="app-header">
         <div className="header-container">
-          <h1 className="app-title">💰 AI Expense Analyzer</h1>
+          <h1 className="app-title">Expense Tracker</h1>
 
           {/* Navigation Menu */}
           <nav className="nav-menu" aria-label="Main navigation">
@@ -229,36 +237,44 @@ function AppShell() {
               onClick={() => setCurrentPage('dashboard')}
               aria-current={currentPage === 'dashboard' ? 'page' : undefined}
             >
-              📊 Dashboard
+              <FiGrid aria-hidden="true" /> Dashboard
             </button>
             <button
               className={`nav-btn ${currentPage === 'add' ? 'active' : ''}`}
               onClick={() => setCurrentPage('add')}
               aria-current={currentPage === 'add' ? 'page' : undefined}
             >
-              ➕ Add Expense
+              <FiPlusCircle aria-hidden="true" /> Add Expense
             </button>
             <button
               className={`nav-btn ${currentPage === 'analytics' ? 'active' : ''}`}
               onClick={() => setCurrentPage('analytics')}
               aria-current={currentPage === 'analytics' ? 'page' : undefined}
             >
-              📈 Analytics
+              <FiBarChart2 aria-hidden="true" /> Analytics
             </button>
             <button
               className={`nav-btn ${currentPage === 'predictions' ? 'active' : ''}`}
               onClick={() => setCurrentPage('predictions')}
               aria-current={currentPage === 'predictions' ? 'page' : undefined}
             >
-              🔮 Predictions
+              <FiTrendingUp aria-hidden="true" /> Predictions
+            </button>
+            <button
+              className={`nav-btn ${currentPage === 'family' ? 'active' : ''}`}
+              onClick={() => setCurrentPage('family')}
+              aria-current={currentPage === 'family' ? 'page' : undefined}
+            >
+              <FiUsers aria-hidden="true" /> Family
             </button>
           </nav>
 
           {/* User Info / Logout */}
           <div className="header-user">
-            {user && <span className="header-username">👤 {user.username}</span>}
+            <ThemeToggle />
+            {user && <span className="header-username"><FiUser aria-hidden="true" /> {user.username}</span>}
             <button className="nav-btn" onClick={logout}>
-              🚪 Log Out
+              <FiLogOut aria-hidden="true" /> Log Out
             </button>
           </div>
         </div>
@@ -270,15 +286,15 @@ function AppShell() {
         {error && (
           <div className="error-banner" role="alert">
             <span>{error}</span>
-            <button onClick={() => setError(null)} aria-label="Dismiss error">✕</button>
+            <button onClick={() => setError(null)} aria-label="Dismiss error"><FiX aria-hidden="true" /></button>
           </div>
         )}
 
         {/* Success Message Display */}
         {successMessage && (
           <div className="success-banner" role="status">
-            <span>✓ {successMessage}</span>
-            <button onClick={() => setSuccessMessage(null)} aria-label="Dismiss message">✕</button>
+            <span>{successMessage}</span>
+            <button onClick={() => setSuccessMessage(null)} aria-label="Dismiss message"><FiX aria-hidden="true" /></button>
           </div>
         )}
 
@@ -296,10 +312,10 @@ function AppShell() {
 
       {/* Footer */}
       <footer className="app-footer">
-        <p>
-          🚀 AI Expense Analyzer v1.0 | Smart spending insights powered by AI
-        </p>
+        <p>Expense Tracker — track, understand, and plan ahead</p>
       </footer>
+
+      <ChatbotWidget />
     </div>
   );
 }

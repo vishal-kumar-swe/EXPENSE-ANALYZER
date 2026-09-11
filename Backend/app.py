@@ -13,9 +13,11 @@ from datetime import datetime
 
 # Import configuration and models
 from config import config
-from models import db, User, Expense, Budget, Prediction, AnomalyLog
+from models import db, User, Expense, Budget, Prediction, AnomalyLog, ParentalControl
 from routes import api_bp, init_analyzer
 from auth_routes import auth_bp
+from parental_routes import parental_bp
+from chatbot_routes import chatbot_bp, init_chatbot
 
 # ===================================================================
 # APPLICATION FACTORY FUNCTION
@@ -58,11 +60,14 @@ def create_app(config_name='development'):
 
     # Initialize AI Engine with config
     init_analyzer(app)
+    init_chatbot(app)
 
     # ===== Register Blueprints =====
     # Blueprints are modular sets of routes
     app.register_blueprint(auth_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(parental_bp)
+    app.register_blueprint(chatbot_bp)
     
     # ===== Error Handlers =====
     
@@ -100,12 +105,15 @@ def create_app(config_name='development'):
     def home():
         """Root endpoint - API information"""
         return jsonify({
-            'message': 'AI Expense Analyzer API',
+            'message': 'Expense Tracker API',
             'version': '1.0.0',
             'endpoints': {
+                'auth': '/api/auth/*',
                 'expenses': '/api/expenses',
                 'analysis': '/api/analysis/*',
                 'predictions': '/api/predictions',
+                'chatbot': '/api/chatbot/ask',
+                'parental': '/api/parental/*',
                 'health': '/api/health'
             }
         }), 200
@@ -131,7 +139,7 @@ def create_app(config_name='development'):
     def inject_config():
         """Inject config into template context"""
         return dict(
-            app_name='AI Expense Analyzer',
+            app_name='Expense Tracker',
             current_year=datetime.now().year
         )
     

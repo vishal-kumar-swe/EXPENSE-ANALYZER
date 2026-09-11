@@ -8,6 +8,7 @@
 // ===================================================================
 
 import React, { useMemo, useState } from 'react';
+import { FiFolder, FiCreditCard, FiEdit2, FiTrash2, FiCheck, FiX, FiAlertTriangle } from 'react-icons/fi';
 
 /**
  * Dashboard Component
@@ -113,7 +114,7 @@ function Dashboard({ expenses, categories = [], onDelete, onUpdate }) {
     <div className="dashboard">
       {/* Summary Cards Section */}
       <section className="summary-section">
-        <h2>📊 Spending Summary</h2>
+        <h2>Spending Summary</h2>
         <div className="summary-cards">
           {/* Total Spent Card */}
           <div className="summary-card">
@@ -147,7 +148,7 @@ function Dashboard({ expenses, categories = [], onDelete, onUpdate }) {
 
       {/* Category Breakdown Section */}
       <section className="category-section">
-        <h2>📂 Breakdown by Category</h2>
+        <h2><FiFolder aria-hidden="true" /> Breakdown by Category</h2>
         <div className="category-list">
           {Object.entries(categoryBreakdown).length === 0 ? (
             <p className="empty-message">No expenses yet. Add one to get started!</p>
@@ -194,7 +195,7 @@ function Dashboard({ expenses, categories = [], onDelete, onUpdate }) {
       {/* Expenses List Section */}
       <section className="expenses-section">
         <h2>
-          💸 Recent Expenses
+          <FiCreditCard aria-hidden="true" /> Recent Expenses
           {selectedCategory && ` - ${selectedCategory}`}
         </h2>
 
@@ -204,7 +205,7 @@ function Dashboard({ expenses, categories = [], onDelete, onUpdate }) {
             className="clear-filter-btn"
             onClick={() => setSelectedCategory(null)}
           >
-            ✕ Clear Filter
+            <FiX aria-hidden="true" /> Clear Filter
           </button>
         )}
 
@@ -285,20 +286,20 @@ function Dashboard({ expenses, categories = [], onDelete, onUpdate }) {
                         />
                       </div>
                       <div className="col-status" data-label="Status">
-                        {expense.is_flagged && <span className="flag-badge">⚠️ Unusual</span>}
+                        {expense.is_flagged && <span className="flag-badge"><FiAlertTriangle aria-hidden="true" /> Unusual</span>}
                       </div>
                       <div className="col-actions" data-label="Actions">
                         <button
                           className="save-btn"
                           onClick={() => handleSave(expense.id)}
                         >
-                          ✓ Save
+                          <FiCheck aria-hidden="true" /> Save
                         </button>
                         <button
                           className="cancel-btn"
                           onClick={() => setEditingId(null)}
                         >
-                          ✕ Cancel
+                          <FiX aria-hidden="true" /> Cancel
                         </button>
                       </div>
                     </>
@@ -313,7 +314,7 @@ function Dashboard({ expenses, categories = [], onDelete, onUpdate }) {
                       <div className="col-amount" data-label="Amount">₹{expense.amount.toFixed(2)}</div>
                       <div className="col-status" data-label="Status">
                         {expense.is_flagged && (
-                          <span className="flag-badge">⚠️ Unusual</span>
+                          <span className="flag-badge"><FiAlertTriangle aria-hidden="true" /> Unusual</span>
                         )}
                       </div>
                       <div className="col-actions" data-label="Actions">
@@ -322,14 +323,14 @@ function Dashboard({ expenses, categories = [], onDelete, onUpdate }) {
                           onClick={() => handleEdit(expense)}
                           title="Edit expense"
                         >
-                          ✎ Edit
+                          <FiEdit2 aria-hidden="true" /> Edit
                         </button>
                         <button
                           className="delete-btn"
                           onClick={() => onDelete(expense.id)}
                           title="Delete expense"
                         >
-                          🗑️ Delete
+                          <FiTrash2 aria-hidden="true" /> Delete
                         </button>
                       </div>
                     </>

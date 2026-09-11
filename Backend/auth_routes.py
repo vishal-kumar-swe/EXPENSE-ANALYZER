@@ -9,6 +9,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from models import db, User
+from access_control import is_parent_account
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
@@ -73,7 +74,10 @@ def register():
             'message': 'Account created successfully',
             'data': {
                 'token': token,
-                'user': user.to_dict()
+                # A brand-new account can't already be linked as a parent
+                # (that only happens via parental_routes.parent_register),
+                # so this is always 'student' here.
+                'user': {**user.to_dict(), 'role': 'student'}
             }
         }), 201
 
@@ -122,13 +126,19 @@ def login():
             }), 401
 
         token = create_access_token(identity=str(user.id))
+        # Compute role dynamically: this same login form works for a
+        # parent account too (it's still just username+password against
+        # the same users table) - if it turns out to belong to a linked
+        # parent, tell the frontend so it can route to the parent view
+        # instead of trying (and failing 403) to load student data.
+        role = 'parent' if is_parent_account(user.id) else 'student'
 
         return jsonify({
             'success': True,
             'message': 'Login successful',
             'data': {
                 'token': token,
-                'user': user.to_dict()
+                'user': {**user.to_dict(), 'role': role}
             }
         }), 200
 
@@ -148,16 +158,19 @@ def me():
     still valid before trusting it to show protected pages.
     """
     try:
-        user = User.query.get(int(get_jwt_identity()))
+        user_id = int(get_jwt_identity())
+        user = User.query.get(user_id)
         if not user:
             return jsonify({
                 'success': False,
                 'error': 'User not found'
             }), 404
 
+        role = 'parent' if is_parent_account(user_id) else 'student'
+
         return jsonify({
             'success': True,
-            'data': user.to_dict()
+            'data': {**user.to_dict(), 'role': role}
         }), 200
 
     except Exception as e:
