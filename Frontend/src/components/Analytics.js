@@ -11,17 +11,21 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
+import Report from './Report';
 
 /**
  * Analytics Component
- * 
+ *
+ * Renders the redesigned Report section (donut chart, day/week/month
+ * toggle, income tracking) followed by the existing Anomaly Detection
+ * and Category Insights sections, unchanged.
+ *
  * Props:
  *  - expenses: Array of expense objects
  */
 function Analytics({ expenses }) {
   // ===== State =====
   const [anomalies, setAnomalies] = useState([]);
-  const [statistics, setStatistics] = useState({});
   const [insights, setInsights] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -50,18 +54,14 @@ function Analytics({ expenses }) {
       setError(null);
 
       // Fetch in parallel
-      const [anomalyRes, statsRes, insightsRes] = await Promise.all([
+      const [anomalyRes, insightsRes] = await Promise.all([
         axios.get(`${API_BASE}/analysis/anomalies?method=${detectionMethod}`),
-        axios.get(`${API_BASE}/analysis/statistics`),
         axios.get(`${API_BASE}/analysis/insights`)
       ]);
 
       // Update state with responses
       if (anomalyRes.data.success) {
         setAnomalies(anomalyRes.data.data);
-      }
-      if (statsRes.data.success) {
-        setStatistics(statsRes.data.data);
       }
       if (insightsRes.data.success) {
         setInsights(insightsRes.data.data);
@@ -141,86 +141,6 @@ function Analytics({ expenses }) {
   };
 
   /**
-   * Render statistics section
-   */
-  const renderStatistics = () => {
-    if (!statistics.total_spent) {
-      return (
-        <div className="empty-state">
-          <p>No expense data available for statistics.</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="stats-grid">
-        <div className="stat-card">
-          <h4>Total Spent</h4>
-          <p className="stat-value">₹{statistics.total_spent?.toFixed(2)}</p>
-        </div>
-        <div className="stat-card">
-          <h4>Average Transaction</h4>
-          <p className="stat-value">
-            ₹{statistics.average_transaction?.toFixed(2)}
-          </p>
-        </div>
-        <div className="stat-card">
-          <h4>Median Transaction</h4>
-          <p className="stat-value">
-            ₹{statistics.median_transaction?.toFixed(2)}
-          </p>
-        </div>
-        <div className="stat-card">
-          <h4>Max Transaction</h4>
-          <p className="stat-value">₹{statistics.max_transaction?.toFixed(2)}</p>
-        </div>
-        <div className="stat-card">
-          <h4>Min Transaction</h4>
-          <p className="stat-value">₹{statistics.min_transaction?.toFixed(2)}</p>
-        </div>
-        <div className="stat-card">
-          <h4>Std Deviation</h4>
-          <p className="stat-value">
-            ₹{statistics.std_deviation?.toFixed(2)}
-          </p>
-        </div>
-      </div>
-    );
-  };
-
-  /**
-   * Render category breakdown
-   */
-  const renderCategoryBreakdown = () => {
-    if (!statistics.by_category || Object.keys(statistics.by_category).length === 0) {
-      return <p>No category data available.</p>;
-    }
-
-    return (
-      <div className="category-breakdown">
-        {Object.entries(statistics.by_category).map(([category, data]) => (
-          <div key={category} className="category-row">
-            <div className="category-name">{category}</div>
-            <div className="category-bar">
-              <div
-                className="category-bar-fill"
-                style={{
-                  width: `${data.percentage}%`
-                }}
-              ></div>
-            </div>
-            <div className="category-stats">
-              <span className="percentage">{data.percentage?.toFixed(1)}%</span>
-              <span className="amount">₹{data.total?.toFixed(2)}</span>
-              <span className="count">({data.count} items)</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  /**
    * Render insights section
    */
   const renderInsights = () => {
@@ -284,6 +204,9 @@ function Analytics({ expenses }) {
         </div>
       )}
 
+      {/* Report Section (donut chart, day/week/month, income) */}
+      <Report />
+
       {/* Anomaly Detection Section */}
       <section className="analytics-section">
         <div className="section-header">
@@ -300,18 +223,6 @@ function Analytics({ expenses }) {
           </div>
         </div>
         {renderAnomalies()}
-      </section>
-
-      {/* Statistics Section */}
-      <section className="analytics-section">
-        <h2>📊 Spending Statistics</h2>
-        {renderStatistics()}
-      </section>
-
-      {/* Category Breakdown */}
-      <section className="analytics-section">
-        <h2>📂 Category Breakdown</h2>
-        {renderCategoryBreakdown()}
       </section>
 
       {/* Insights Section */}

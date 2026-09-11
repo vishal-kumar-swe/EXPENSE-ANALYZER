@@ -7,9 +7,10 @@
 # 3. Pattern Analysis (understand spending behavior)
 # ===================================================================
 
+import calendar
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import IsolationForest
 from sklearn.linear_model import LinearRegression
@@ -375,6 +376,136 @@ class ExpenseAnalyzer:
         
         return monthly_trends
     
+    def get_daily_breakdown(self, expenses_df, year, month):
+        """
+        Total spend per day for every day in the given month (zero-filled,
+        so the frontend gets a complete series with no gaps to patch over).
+
+        Args:
+            expenses_df: Expense data already filtered to this month
+            year, month: The month to break down
+
+        Returns:
+            List of {date, total} dicts, one per day of the month, in order
+        """
+        days_in_month = calendar.monthrange(year, month)[1]
+        daily_totals = {}
+
+        if len(expenses_df) > 0:
+            df = expenses_df.copy()
+            df['date'] = pd.to_datetime(df['date'])
+            grouped = df.groupby(df['date'].dt.day)['amount'].sum()
+            daily_totals = grouped.to_dict()
+
+        return [
+            {
+                'date': date(year, month, day).isoformat(),
+                'total': float(daily_totals.get(day, 0))
+            }
+            for day in range(1, days_in_month + 1)
+        ]
+
+    def get_weekly_breakdown(self, expenses_df, year, month):
+        """
+        Total spend per calendar week (Monday-Sunday) overlapping the given
+        month. Weeks are clipped to the month's actual days, so the first
+        and last week may be shorter than 7 days - this is what produces
+        the familiar "Week 1...Week 4/5" bucketing for a whole month.
+
+        Args:
+            expenses_df: Expense data already filtered to this month
+            year, month: The month to break down
+
+        Returns:
+            List of {label, start, end, total} dicts, one per week
+        """
+        first_day = date(year, month, 1)
+        last_day = date(year, month, calendar.monthrange(year, month)[1])
+
+        df = None
+        if len(expenses_df) > 0:
+            df = expenses_df.copy()
+            df['date'] = pd.to_datetime(df['date']).dt.date
+
+        weeks = []
+        # Start from the Monday on/before the 1st, so the first bucket
+        # correctly represents "Week 1" even if the month doesn't start
+        # on a Monday.
+        current = first_day - timedelta(days=first_day.weekday())
+        week_num = 1
+
+        while current <= last_day:
+            week_start = max(current, first_day)
+            week_end = min(current + timedelta(days=6), last_day)
+
+            total = 0.0
+            if df is not None:
+                mask = (df['date'] >= week_start) & (df['date'] <= week_end)
+                total = float(df[mask]['amount'].sum())
+
+            weeks.append({
+                'label': f'Week {week_num}',
+                'start': week_start.isoformat(),
+                'end': week_end.isoformat(),
+                'total': total
+            })
+
+            current += timedelta(days=7)
+            week_num += 1
+
+        return weeks
+
+    def get_monthly_category_breakdown(self, current_df, previous_df):
+        """
+        Category totals for one month, with % of the month's total and
+        the change vs. the same category the previous month - this is
+        the data behind the donut chart + category list.
+
+        Args:
+            current_df: Expenses for the selected month
+            previous_df: Expenses for the month immediately before it
+                         (comparison baseline)
+
+        Returns:
+            Dict with 'total' and a 'categories' list, sorted by spend
+            (highest first)
+        """
+        total = float(current_df['amount'].sum()) if len(current_df) > 0 else 0.0
+
+        previous_by_category = {}
+        if len(previous_df) > 0:
+            previous_by_category = previous_df.groupby('category')['amount'].sum().to_dict()
+
+        categories = []
+        if len(current_df) > 0:
+            current_by_category = current_df.groupby('category')['amount'].sum()
+
+            for category, amount in current_by_category.items():
+                amount = float(amount)
+                previous_amount = float(previous_by_category.get(category, 0))
+
+                if previous_amount > 0:
+                    change_percentage = ((amount - previous_amount) / previous_amount) * 100
+                else:
+                    # No spending in this category last month - treat any
+                    # spend at all as a fresh +100%, and no spend as flat.
+                    change_percentage = 100.0 if amount > 0 else 0.0
+
+                categories.append({
+                    'category': category,
+                    'total': amount,
+                    'percentage': (amount / total * 100) if total > 0 else 0.0,
+                    'previous_total': previous_amount,
+                    'change_percentage': change_percentage
+                })
+
+            categories.sort(key=lambda c: c['total'], reverse=True)
+
+        return {
+            'total': total,
+            'categories': categories
+        }
+
     def get_category_insights(self, expenses_df):
         """
         Get detailed insights per category

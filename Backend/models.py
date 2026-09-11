@@ -130,6 +130,48 @@ class Expense(db.Model):
 
 
 # ===================================================================
+# MONTHLY INCOME MODEL
+# ===================================================================
+class MonthlyIncome(db.Model):
+    """
+    MonthlyIncome Model - The user's self-reported income for one month
+
+    Attributes:
+        id: Unique identifier
+        user_id: User this income belongs to
+        month: The month this income applies to (stored as the 1st of
+               that month, same convention as Budget.month/Prediction.month)
+        amount: Income amount for that month
+        updated_at: When this was last edited (create or edit both touch it)
+    """
+
+    __tablename__ = 'monthly_income'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    month = db.Column(db.Date, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'month', name='uq_monthly_income_user_month'),
+    )
+
+    def __repr__(self):
+        return f'<MonthlyIncome {self.month}: ₹{self.amount}>'
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'month': self.month.isoformat(),
+            'amount': self.amount,
+            'updated_at': self.updated_at.isoformat()
+        }
+
+
+# ===================================================================
 # BUDGET MODEL
 # ===================================================================
 class Budget(db.Model):

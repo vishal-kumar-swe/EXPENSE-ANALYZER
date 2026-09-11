@@ -7,9 +7,11 @@
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+import calendar
 import pandas as pd
-from models import db, Expense, Budget, Prediction, AnomalyLog
+from dateutil.relativedelta import relativedelta
+from models import db, Expense, Budget, Prediction, AnomalyLog, MonthlyIncome
 from ai_engine import ExpenseAnalyzer
 
 # Create Blueprint for organizing routes
@@ -22,6 +24,32 @@ def init_analyzer(app):
     """Initialize the AI analyzer with app config"""
     global analyzer
     analyzer = ExpenseAnalyzer(app.config)
+
+def parse_month_param(default_to_today=True):
+    """
+    Parse the shared `?month=YYYY-MM` query param used by the report
+    endpoints below.
+
+    Returns:
+        (year, month) tuple. Falls back to the current month if the
+        param is missing (or malformed, when default_to_today=True).
+    """
+    month_param = request.args.get('month')
+    if month_param:
+        year_str, month_str = month_param.split('-')
+        return int(year_str), int(month_str)
+    if default_to_today:
+        today = datetime.now()
+        return today.year, today.month
+    raise ValueError('month is required (format: YYYY-MM)')
+
+def expenses_to_df(expenses):
+    """Shared Expense-list -> DataFrame conversion used across analysis endpoints"""
+    return pd.DataFrame([{
+        'category': e.category,
+        'amount': e.amount,
+        'date': e.date
+    } for e in expenses])
 
 # ===================================================================
 # EXPENSE ENDPOINTS
@@ -242,6 +270,100 @@ def delete_expense(expense_id):
     
     except Exception as e:
         db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/expenses/analysis', methods=['GET'])
+@jwt_required()
+def get_expenses_analysis():
+    """
+    GET - Pre-aggregated expense totals for the Report section, grouped
+    however the frontend's Day/Week/Month toggle asks for. All grouping
+    happens here so the frontend never has to sum raw expenses itself.
+
+    Query Parameters:
+        - period: 'day' | 'week' | 'month' (default 'month')
+        - month: 'YYYY-MM' (default: current month)
+
+    Returns:
+        - period=day:   {period, month, total, days: [{date, total}, ...]}
+        - period=week:  {period, month, total, weeks: [{label, start, end, total}, ...]}
+        - period=month: {period, month, total, categories: [...], trend: [...], income}
+    """
+    try:
+        user_id = int(get_jwt_identity())
+        period = request.args.get('period', 'month')
+        year, month = parse_month_param()
+
+        month_start = date(year, month, 1)
+        month_end = date(year, month, calendar.monthrange(year, month)[1])
+        month_label = f'{year:04d}-{month:02d}'
+
+        current_expenses = Expense.query.filter_by(user_id=user_id).filter(
+            Expense.date >= month_start, Expense.date <= month_end
+        ).all()
+        current_df = expenses_to_df(current_expenses)
+
+        if period == 'day':
+            days = analyzer.get_daily_breakdown(current_df, year, month)
+            return jsonify({
+                'success': True,
+                'data': {
+                    'period': 'day',
+                    'month': month_label,
+                    'total': sum(d['total'] for d in days),
+                    'days': days
+                }
+            }), 200
+
+        elif period == 'week':
+            weeks = analyzer.get_weekly_breakdown(current_df, year, month)
+            return jsonify({
+                'success': True,
+                'data': {
+                    'period': 'week',
+                    'month': month_label,
+                    'total': sum(w['total'] for w in weeks),
+                    'weeks': weeks
+                }
+            }), 200
+
+        else:  # month
+            previous_month_end = month_start - timedelta(days=1)
+            previous_month_start = previous_month_end.replace(day=1)
+            previous_expenses = Expense.query.filter_by(user_id=user_id).filter(
+                Expense.date >= previous_month_start, Expense.date <= previous_month_end
+            ).all()
+            previous_df = expenses_to_df(previous_expenses)
+
+            breakdown = analyzer.get_monthly_category_breakdown(current_df, previous_df)
+
+            # Trend line: the 6 months up to and including the selected one
+            trend_start = month_start - relativedelta(months=5)
+            trend_expenses = Expense.query.filter_by(user_id=user_id).filter(
+                Expense.date >= trend_start, Expense.date <= month_end
+            ).all()
+            trend_df = expenses_to_df(trend_expenses)
+            monthly_trends = analyzer.get_monthly_trends(trend_df)
+            trend = [{'month': k, 'total': v} for k, v in sorted(monthly_trends.items())]
+
+            income_row = MonthlyIncome.query.filter_by(user_id=user_id, month=month_start).first()
+
+            return jsonify({
+                'success': True,
+                'data': {
+                    'period': 'month',
+                    'month': month_label,
+                    'total': breakdown['total'],
+                    'categories': breakdown['categories'],
+                    'trend': trend,
+                    'income': income_row.amount if income_row else None
+                }
+            }), 200
+
+    except Exception as e:
         return jsonify({
             'success': False,
             'error': str(e)
@@ -488,6 +610,94 @@ def get_predictions():
         }), 200
     
     except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# ===================================================================
+# INCOME ENDPOINTS
+# ===================================================================
+
+@api_bp.route('/income', methods=['GET'])
+@jwt_required()
+def get_income():
+    """
+    GET - The logged-in user's income for one month (defaults to the
+    current month). Returns amount 0 (not a 404) when nothing has been
+    set yet, since "no income entered" is the normal starting state.
+    """
+    try:
+        user_id = int(get_jwt_identity())
+        year, month = parse_month_param()
+        month_date = date(year, month, 1)
+
+        income = MonthlyIncome.query.filter_by(user_id=user_id, month=month_date).first()
+
+        return jsonify({
+            'success': True,
+            'data': income.to_dict() if income else {
+                'month': month_date.isoformat(),
+                'amount': 0.0
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/income', methods=['PUT'])
+@jwt_required()
+def set_income():
+    """
+    PUT - Create or update the logged-in user's income for one month
+    (upsert on the user_id + month unique constraint).
+
+    Expected JSON:
+    {
+        "month": "2025-11",
+        "amount": 60000
+    }
+    """
+    try:
+        user_id = int(get_jwt_identity())
+        data = request.get_json() or {}
+
+        month_param = data.get('month')
+        if not month_param:
+            return jsonify({'success': False, 'error': 'month is required (format: YYYY-MM)'}), 400
+        if 'amount' not in data:
+            return jsonify({'success': False, 'error': 'amount is required'}), 400
+
+        try:
+            amount = float(data['amount'])
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': 'amount must be a number'}), 400
+        if amount < 0:
+            return jsonify({'success': False, 'error': 'amount cannot be negative'}), 400
+
+        year_str, month_str = month_param.split('-')
+        month_date = date(int(year_str), int(month_str), 1)
+
+        income = MonthlyIncome.query.filter_by(user_id=user_id, month=month_date).first()
+        if income:
+            income.amount = amount
+        else:
+            income = MonthlyIncome(user_id=user_id, month=month_date, amount=amount)
+            db.session.add(income)
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Income saved successfully',
+            'data': income.to_dict()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
         return jsonify({
             'success': False,
             'error': str(e)
