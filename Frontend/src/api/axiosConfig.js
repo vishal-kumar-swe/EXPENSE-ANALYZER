@@ -33,7 +33,12 @@ axios.interceptors.response.use(
     // and should just be handled by the calling component instead.
     const requestHadToken = Boolean(error.config?.headers?.Authorization);
 
-    if (error.response?.status === 401 && requestHadToken) {
+    // Flask-JWT-Extended returns 401 for an EXPIRED token but 422 for a
+    // structurally malformed one (its default invalid_token_loader) -
+    // both mean "this token is dead," so both need to bounce to /login.
+    const isDeadToken = error.response?.status === 401 || error.response?.status === 422;
+
+    if (isDeadToken && requestHadToken) {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
       if (window.location.pathname !== '/login') {
