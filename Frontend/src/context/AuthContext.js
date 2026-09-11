@@ -31,7 +31,7 @@ export function AuthProvider({ children }) {
 
     let cancelled = false;
 
-    axios.get(`${API_BASE_URL}/auth/me`)
+    axios.get(`${API_BASE_URL}/auth/me`, { timeout: 45000 })
       .then((response) => {
         if (cancelled) return;
         if (response.data.success) {
@@ -39,14 +39,23 @@ export function AuthProvider({ children }) {
           localStorage.setItem(USER_KEY, JSON.stringify(response.data.data));
         }
       })
-      .catch(() => {
-        // Stored token is invalid/expired - drop it so ProtectedRoute
-        // sends the user to /login instead of showing stale pages.
+      .catch((error) => {
         if (cancelled) return;
-        setToken(null);
-        setUser(null);
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
+        // Only a CONFIRMED 401 means the token itself is invalid/expired.
+        // Any other failure - a network error, a timeout, Render's free
+        // tier returning a 502/503 while it cold-starts - is NOT proof
+        // the token is bad. Wiping the session on those was logging
+        // people out (and making them re-register) just because the
+        // backend was slow to wake up, not because their login was wrong.
+        if (error.response?.status === 401) {
+          setToken(null);
+          setUser(null);
+          localStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(USER_KEY);
+        }
+        // else: keep the cached token/user - trust the existing session.
+        // If the token really is bad, the axios interceptor already
+        // handles a 401 on any later API call and redirects to /login then.
       })
       .finally(() => {
         if (!cancelled) setIsChecking(false);
