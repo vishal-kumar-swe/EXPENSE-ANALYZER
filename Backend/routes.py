@@ -6,6 +6,7 @@
 # ===================================================================
 
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 import pandas as pd
 from models import db, Expense, Budget, Prediction, AnomalyLog
@@ -27,21 +28,23 @@ def init_analyzer(app):
 # ===================================================================
 
 @api_bp.route('/expenses', methods=['GET'])
+@jwt_required()
 def get_expenses():
     """
     GET all expenses for the user
-    
+
     Query Parameters:
         - category: Filter by category (optional)
         - start_date: Filter from this date (optional)
         - end_date: Filter until this date (optional)
-    
+
     Returns:
         List of expenses in JSON format
     """
     try:
-        # Start with all expenses for current user (user_id = 1 for demo)
-        query = Expense.query.filter_by(user_id=1)
+        # Start with all expenses for the logged-in user
+        user_id = int(get_jwt_identity())
+        query = Expense.query.filter_by(user_id=user_id)
         
         # Apply category filter if provided
         category = request.args.get('category')
@@ -73,10 +76,11 @@ def get_expenses():
         }), 500
 
 @api_bp.route('/expenses', methods=['POST'])
+@jwt_required()
 def create_expense():
     """
     POST - Create a new expense
-    
+
     Expected JSON:
     {
         "category": "Food & Dining",
@@ -84,14 +88,14 @@ def create_expense():
         "date": "2024-01-15",
         "description": "Lunch with colleagues"
     }
-    
+
     Returns:
         Created expense object
     """
     try:
         # Get JSON data from request
         data = request.get_json()
-        
+
         # Validate required fields
         required_fields = ['category', 'amount', 'date']
         for field in required_fields:
@@ -100,10 +104,10 @@ def create_expense():
                     'success': False,
                     'error': f'Missing required field: {field}'
                 }), 400
-        
+
         # Create new expense object
         expense = Expense(
-            user_id=1,  # Demo user
+            user_id=int(get_jwt_identity()),
             category=data['category'],
             amount=float(data['amount']),
             date=datetime.fromisoformat(data['date']).date(),
@@ -132,19 +136,20 @@ def create_expense():
         }), 500
 
 @api_bp.route('/expenses/<int:expense_id>', methods=['GET'])
+@jwt_required()
 def get_expense(expense_id):
     """
     GET a specific expense by ID
-    
+
     Args:
         expense_id: ID of the expense
-    
+
     Returns:
         Expense details
     """
     try:
-        expense = Expense.query.get(expense_id)
-        
+        expense = Expense.query.filter_by(id=expense_id, user_id=int(get_jwt_identity())).first()
+
         if not expense:
             return jsonify({
                 'success': False,
@@ -163,18 +168,19 @@ def get_expense(expense_id):
         }), 500
 
 @api_bp.route('/expenses/<int:expense_id>', methods=['PUT'])
+@jwt_required()
 def update_expense(expense_id):
     """
     PUT - Update an existing expense
-    
+
     Args:
         expense_id: ID of expense to update
-    
+
     Expected JSON: (same as create, but all fields optional)
     """
     try:
-        expense = Expense.query.get(expense_id)
-        
+        expense = Expense.query.filter_by(id=expense_id, user_id=int(get_jwt_identity())).first()
+
         if not expense:
             return jsonify({
                 'success': False,
@@ -209,16 +215,17 @@ def update_expense(expense_id):
         }), 500
 
 @api_bp.route('/expenses/<int:expense_id>', methods=['DELETE'])
+@jwt_required()
 def delete_expense(expense_id):
     """
     DELETE - Remove an expense
-    
+
     Args:
         expense_id: ID of expense to delete
     """
     try:
-        expense = Expense.query.get(expense_id)
-        
+        expense = Expense.query.filter_by(id=expense_id, user_id=int(get_jwt_identity())).first()
+
         if not expense:
             return jsonify({
                 'success': False,
@@ -245,14 +252,15 @@ def delete_expense(expense_id):
 # ===================================================================
 
 @api_bp.route('/analysis/anomalies', methods=['GET'])
+@jwt_required()
 def get_anomalies():
     """
     GET - Detect anomalies in spending
-    
+
     Query Parameters:
         - days: Number of days to analyze (default=90)
         - method: 'statistical' or 'ml' (default='statistical')
-    
+
     Returns:
         List of detected anomalies
     """
@@ -260,10 +268,10 @@ def get_anomalies():
         # Get parameters
         days = request.args.get('days', 90, type=int)
         method = request.args.get('method', 'statistical')
-        
+
         # Get expenses from last N days
         start_date = datetime.now() - timedelta(days=days)
-        expenses = Expense.query.filter_by(user_id=1).filter(
+        expenses = Expense.query.filter_by(user_id=int(get_jwt_identity())).filter(
             Expense.date >= start_date.date()
         ).all()
         
@@ -306,18 +314,19 @@ def get_anomalies():
         }), 500
 
 @api_bp.route('/analysis/statistics', methods=['GET'])
+@jwt_required()
 def get_statistics():
     """
     GET - Get spending statistics
-    
+
     Returns:
         Total, average, category breakdown, etc.
     """
     try:
         days = request.args.get('days', 90, type=int)
         start_date = datetime.now() - timedelta(days=days)
-        
-        expenses = Expense.query.filter_by(user_id=1).filter(
+
+        expenses = Expense.query.filter_by(user_id=int(get_jwt_identity())).filter(
             Expense.date >= start_date.date()
         ).all()
         
@@ -348,15 +357,16 @@ def get_statistics():
         }), 500
 
 @api_bp.route('/analysis/trends', methods=['GET'])
+@jwt_required()
 def get_trends():
     """
     GET - Get monthly spending trends
-    
+
     Returns:
         Month-wise spending breakdown
     """
     try:
-        expenses = Expense.query.filter_by(user_id=1).all()
+        expenses = Expense.query.filter_by(user_id=int(get_jwt_identity())).all()
         
         expenses_df = pd.DataFrame([{
             'category': e.category,
@@ -385,18 +395,19 @@ def get_trends():
         }), 500
 
 @api_bp.route('/analysis/insights', methods=['GET'])
+@jwt_required()
 def get_insights():
     """
     GET - Get category insights and recommendations
-    
+
     Returns:
         Insights for each category with budget recommendations
     """
     try:
         days = request.args.get('days', 180, type=int)
         start_date = datetime.now() - timedelta(days=days)
-        
-        expenses = Expense.query.filter_by(user_id=1).filter(
+
+        expenses = Expense.query.filter_by(user_id=int(get_jwt_identity())).filter(
             Expense.date >= start_date.date()
         ).all()
         
@@ -431,22 +442,23 @@ def get_insights():
 # ===================================================================
 
 @api_bp.route('/predictions', methods=['GET'])
+@jwt_required()
 def get_predictions():
     """
     GET - Get expense predictions for next month
-    
+
     Query Parameters:
         - method: 'linear' or 'exponential' (default='linear')
-    
+
     Returns:
         Predicted expenses per category
     """
     try:
         method = request.args.get('method', 'linear')
-        
+
         # Get last 6 months of expenses
         start_date = datetime.now() - timedelta(days=180)
-        expenses = Expense.query.filter_by(user_id=1).filter(
+        expenses = Expense.query.filter_by(user_id=int(get_jwt_identity())).filter(
             Expense.date >= start_date.date()
         ).all()
         

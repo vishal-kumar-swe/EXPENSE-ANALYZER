@@ -7,13 +7,15 @@
 
 from flask import Flask, jsonify
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 import os
 from datetime import datetime
 
 # Import configuration and models
 from config import config
-from models import db, Expense, Budget, Prediction, AnomalyLog
+from models import db, User, Expense, Budget, Prediction, AnomalyLog
 from routes import api_bp, init_analyzer
+from auth_routes import auth_bp
 
 # ===================================================================
 # APPLICATION FACTORY FUNCTION
@@ -32,24 +34,34 @@ def create_app(config_name='development'):
     
     # Create Flask app instance
     app = Flask(__name__)
-    
+
     # Load configuration
-    app.config.from_object(config[config_name])
-    
+    selected_config = config[config_name]
+    app.config.from_object(selected_config)
+
+    # Run environment-specific validation (e.g. ProductionConfig requires
+    # SECRET_KEY to actually be set) - only for the config we just selected,
+    # not for every config class defined in config.py.
+    selected_config.init_app(app)
+
     # ===== Initialize Extensions =====
-    
+
     # Initialize SQLAlchemy (database)
     db.init_app(app)
-    
+
+    # Initialize JWT (token-based auth)
+    JWTManager(app)
+
     # Enable CORS (Cross-Origin Resource Sharing)
     # Allows frontend to make requests to backend
     CORS(app, origins=app.config['CORS_ORIGINS'])
-    
+
     # Initialize AI Engine with config
     init_analyzer(app)
-    
+
     # ===== Register Blueprints =====
     # Blueprints are modular sets of routes
+    app.register_blueprint(auth_bp)
     app.register_blueprint(api_bp)
     
     # ===== Error Handlers =====

@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
 /**
  * Analytics Component
@@ -22,12 +23,11 @@ function Analytics({ expenses }) {
   const [anomalies, setAnomalies] = useState([]);
   const [statistics, setStatistics] = useState({});
   const [insights, setInsights] = useState({});
-  const [trends, setTrends] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [detectionMethod, setDetectionMethod] = useState('statistical');
 
-  const API_BASE = 'http://localhost:5000/api';
+  const API_BASE = API_BASE_URL;
 
   // ===== Lifecycle Hooks =====
 
@@ -36,7 +36,8 @@ function Analytics({ expenses }) {
    */
   useEffect(() => {
     fetchAnalytics();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detectionMethod]);
 
   // ===== API Functions =====
 
@@ -49,11 +50,10 @@ function Analytics({ expenses }) {
       setError(null);
 
       // Fetch in parallel
-      const [anomalyRes, statsRes, insightsRes, trendsRes] = await Promise.all([
+      const [anomalyRes, statsRes, insightsRes] = await Promise.all([
         axios.get(`${API_BASE}/analysis/anomalies?method=${detectionMethod}`),
         axios.get(`${API_BASE}/analysis/statistics`),
-        axios.get(`${API_BASE}/analysis/insights`),
-        axios.get(`${API_BASE}/analysis/trends`)
+        axios.get(`${API_BASE}/analysis/insights`)
       ]);
 
       // Update state with responses
@@ -65,9 +65,6 @@ function Analytics({ expenses }) {
       }
       if (insightsRes.data.success) {
         setInsights(insightsRes.data.data);
-      }
-      if (trendsRes.data.success) {
-        setTrends(trendsRes.data.data);
       }
     } catch (err) {
       console.error('Error fetching analytics:', err);
@@ -268,7 +265,8 @@ function Analytics({ expenses }) {
   if (loading) {
     return (
       <div className="analytics">
-        <div className="loading">
+        <div className="loading-spinner">
+          <div className="spinner"></div>
           <p>Loading analytics...</p>
         </div>
       </div>
@@ -278,8 +276,11 @@ function Analytics({ expenses }) {
   return (
     <div className="analytics">
       {error && (
-        <div className="error-banner">
-          <p>{error}</p>
+        <div className="error-banner" role="alert">
+          <span>{error}</span>
+          <button onClick={fetchAnalytics} aria-label="Retry loading analytics">
+            🔄 Retry
+          </button>
         </div>
       )}
 
@@ -291,10 +292,7 @@ function Analytics({ expenses }) {
             <label>Detection Method:</label>
             <select
               value={detectionMethod}
-              onChange={(e) => {
-                setDetectionMethod(e.target.value);
-                fetchAnalytics();
-              }}
+              onChange={(e) => setDetectionMethod(e.target.value)}
             >
               <option value="statistical">Statistical Analysis</option>
               <option value="ml">Machine Learning (Isolation Forest)</option>
