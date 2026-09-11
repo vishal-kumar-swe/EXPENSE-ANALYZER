@@ -38,8 +38,17 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def set_password(self, password):
-        """Hash and store a plaintext password"""
-        self.password_hash = generate_password_hash(password)
+        """
+        Hash and store a plaintext password.
+
+        Werkzeug's default method is scrypt, which is deliberately
+        memory-hard (~100ms on a dev laptop, much more on a slow/shared
+        Render CPU - measured as the main cost behind register/login
+        feeling slow). pbkdf2:sha256:260000 was Werkzeug's own default
+        for years and is still a solid iteration count - about 3x faster
+        while remaining a legitimate, widely-used choice.
+        """
+        self.password_hash = generate_password_hash(password, method='pbkdf2:sha256:260000')
 
     def check_password(self, password):
         """Verify a plaintext password against the stored hash"""
